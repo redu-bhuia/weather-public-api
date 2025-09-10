@@ -1,1 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Weather Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: linear-gradient(135deg, #72c6ef 0%, #004e92 100%);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      background: rgba(255,255,255,0.85);
+      border-radius: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      padding: 2rem 2.5rem;
+      width: 370px;
+      text-align: center;
+    }
+    h2 {
+      margin-top: 0;
+      color: #004e92;
+    }
+    input[type="text"] {
+      padding: 0.7rem 1rem;
+      width: 70%;
+      border-radius: 8px;
+      border: 1px solid #cfd8dc;
+      font-size: 1rem;
+      margin-bottom: 1.2rem;
+      outline: none;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 0.7rem 1.4rem;
+      border-radius: 8px;
+      border: none;
+      background: #72c6ef;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-bottom: 0.5rem;
+    }
+    button:hover {
+      background: #004e92;
+    }
+    .weather, .forecast {
+      margin-top: 1.2rem;
+    }
+    .icon {
+      width: 70px;
+      height: 70px;
+    }
+    .info {
+      font-size: 1.05rem;
+      color: #333;
+      margin-top: 0.7rem;
+    }
+    .error {
+      color: #d32f2f;
+      margin-top: 1.2rem;
+    }
+    #unitToggle {
+      margin: 0.8rem 0 0.2rem 0;
+      font-size: 0.98rem;
+    }
+    .history {
+      margin: 0.8rem 0 0.2rem 0;
+      font-size: 0.96rem;
+    }
+    .history span {
+      background: #e3f2fd;
+      color: #004e92;
+      border-radius: 6px;
+      padding: 2px 8px;
+      margin: 0 2px;
+      cursor: pointer;
+      display: inline-block;
+      transition: background 0.2s;
+    }
+    .history span:hover {
+      background: #b3e5fc;
+    }
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #004e92;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      animation: spin 0.8s linear infinite;
+      margin: 1.2rem auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg);}
+      100% { transform: rotate(360deg);}
+    }
+    .details {
+      margin-top: 0.5rem;
+      font-size: 0.95rem;
+      color: #555;
+      display: none;
+    }
+    .show-details {
+      display: block;
+    }
+    .details-toggle {
+      background: none;
+      border: none;
+      color: #004e92;
+      font-size: 0.95rem;
+      text-decoration: underline;
+      cursor: pointer;
+      margin-top: 0.4rem;
+    }
+    .forecast-day {
+      background: #e3f2fd;
+      border-radius: 10px;
+      margin: 0.4rem 0;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.96rem;
+      color: #004e92;
+    }
+    .forecast-icon {
+      vertical-align: middle;
+      width: 32px;
+      height: 32px;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Weather Dashboard</h2>
+    <input type="text" id="cityInput" placeholder="Enter city (e.g. London)" />
+    <button onclick="getWeather()">Get Weather</button>
+    <button onclick="getLocationWeather()">Get My Location</button>
+    <div id="unitToggle">
+      <label>
+        <input type="checkbox" id="celsiusToggle" checked onchange="toggleUnit()">
+        Show °F
+      </label>
+    </div>
+    <div class="history" id="history"></div>
+    <div class="loader" id="loader" style="display:none;"></div>
+    <div class="weather" id="weather"></div>
+    <div class="forecast" id="forecast"></div>
+    <div class="error" id="error"></div>
+  </div>
+  <script>
+    // --- Weather code mapping ---
+    function getWeatherIcon(code) {
+      const map = {
+        0: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163661.png", desc: "Clear sky" },
+        1: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163624.png", desc: "Mainly clear" },
+        2: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163624.png", desc: "Partly cloudy" },
+        3: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163624.png", desc: "Overcast" },
+        45: { icon: "https://cdn-icons-png.flaticon.com/512/414/414974.png", desc: "Fog" },
+        48: { icon: "https://cdn-icons-png.flaticon.com/512/414/414974.png", desc: "Depositing rime fog" },
+        51: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163634.png", desc: "Drizzle: light" },
+        53: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163634.png", desc: "Drizzle: moderate" },
+        55: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163634.png", desc: "Drizzle: dense" },
+        61: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163645.png", desc: "Rain: slight" },
+        63: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163645.png", desc: "Rain: moderate" },
+        65: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163645.png", desc: "Rain: heavy" },
+        71: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163676.png", desc: "Snow fall: slight" },
+        73: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163676.png", desc: "Snow fall: moderate" },
+        75: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163676.png", desc: "Snow fall: heavy" },
+        80: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163624.png", desc: "Rain showers: slight" },
+        81: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163645.png", desc: "Rain showers: moderate" },
+        82: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163645.png", desc: "Rain showers: violent" },
+        95: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163665.png", desc: "Thunderstorm: slight/moderate" },
+        96: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163665.png", desc: "Thunderstorm: hail" },
+        99: { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163665.png", desc: "Thunderstorm: heavy hail" }
+      };
+      return map[code] || { icon: "https://cdn-icons-png.flaticon.com/512/1163/1163661.png", desc: "Unknown" };
+    }
 
+    // --- State ---
+    let isCelsius = true;
+    let weatherDetails = null;
+    let lastCity = '';
+    const historyKey = 'weatherSearchHistory';
+
+    // --- Search history ---
+    function updateHistory(city) {
+      if (!city) return;
+      let history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      history = history.filter(c => c.toLowerCase() !== city.toLowerCase());
+      history.unshift(city);
+      if (history.length > 5) history.pop();
+      localStorage.setItem(historyKey, JSON.stringify(history));
+      renderHistory();
+    }
+    function renderHistory() {
+      let history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      const container = document.getElementById('history');
+      container.innerHTML = history.length
+        ? 'Recent: ' + history.map(c => `<span onclick="quickSearch('${c}')">${c}</span>`).join('')
+        : '';
+    }
+    function quickSearch(city) {
+      document.getElementById('cityInput').value = city;
+      getWeather();
+    }
+
+    // --- Loader ---
+    function showLoader(show) {
+      document.getElementById('loader').style.display = show ? 'block' : 'none';
+    }
+
+    // --- Unit toggle ---
+    function toggleUnit() {
+      isCelsius = !document.getElementById('celsiusToggle').checked;
+      if (weatherDetails) renderWeather(weatherDetails);
+      if (weatherDetails && weatherDetails.forecast) renderForecast(weatherDetails.forecast);
+    }
+    function convertTemp(temp, toF) {
+      return toF ? (temp * 9/5 + 32).toFixed(1) : temp;
+    }
+
+    // --- Weather fetch ---
+    async function getWeather() {
+      const city = document.getElementById('cityInput').value.trim();
+      lastCity = city;
+      document.getElementById('weather').innerHTML = '';
+      document.getElementById('forecast').innerHTML = '';
+      document.getElementById('error').textContent = '';
+      weatherDetails = null;
+      showLoader(true);
+
+      if (!city) {
+        showLoader(false);
+        document.getElementById('error').textContent = 'Please enter a city name.';
+        return;
+      }
+
+      // Step 1: Get lat/lon
+      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`;
+      try {
+        const geoRes = await fetch(geoUrl);
+        const geoData = await geoRes.json();
+        if (!geoData.results || geoData.results.length === 0) {
+          showLoader(false);
+          document.getElementById('error').textContent = 'City not found. Try another name.';
+          return;
+        }
+        const { latitude, longitude, name, country } = geoData.results[0];
+
+        // Step 2: Current weather + extra details
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=relative_humidity_2m,winddirection_10m&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto`;
+        const weatherRes = await fetch(weatherUrl);
+        const weatherData = await weatherRes.json();
+
+        if (!weatherData.current_weather) {
+          showLoader(false);
+          document.getElementById('error').textContent = 'Weather data unavailable for this location.';
+          return;
+        }
+        // Prepare details
+        const w = weatherData.current_weather;
+        // Find humidity for current hour
+        let humidity = '';
+        if (weatherData.hourly && weatherData.hourly.relative_humidity_2m) {
+          const idx = weatherData.hourly.time.findIndex(t => t === w.time);
+          if (idx >= 0) humidity = weatherData.hourly.relative_humidity_2m[idx];
+        }
+        let windDir = '';
+        if (weatherData.hourly && weatherData.hourly.winddirection_10m) {
+          const idx = weatherData.hourly.time.findIndex(t => t === w.time);
+          if (idx >= 0) windDir = weatherData.hourly.winddirection_10m[idx];
+        }
+        // Forecast for next 3 days
+        let forecast = [];
+        if (weatherData.daily && weatherData.daily.time) {
+          for (let i = 1; i <= 3; i++) {
+            if (weatherData.daily.time[i]) {
+              forecast.push({
+                date: weatherData.daily.time[i],
+                min: weatherData.daily.temperature_2m_min[i],
+                max: weatherData.daily.temperature_2m_max[i],
+                code: weatherData.daily.weathercode[i]
+              });
+            }
+          }
+        }
+
+        weatherDetails = {
+          name, country,
+          temperature: w.temperature,
+          windspeed: w.windspeed,
+          weathercode: w.weathercode,
+          humidity,
+          windDir,
+          forecast
+        };
+
+        showLoader(false);
+        renderWeather(weatherDetails);
+        renderForecast(forecast);
+        updateHistory(`${name}, ${country}`);
+      } catch (err) {
+        showLoader(false);
+        document.getElementById('error').textContent = 'Failed to fetch weather data. Try again.';
+      }
+    }
+
+    // --- Geolocation weather ---
+    function getLocationWeather() {
+      document.getElementById('weather').innerHTML = '';
+      document.getElementById('forecast').innerHTML = '';
+      document.getElementById('error').textContent = '';
+      showLoader(true);
+      weatherDetails = null;
+      if (!navigator.geolocation) {
+        showLoader(false);
+        document.getElementById('error').textContent = 'Geolocation not supported.';
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const { latitude, longitude } = pos.coords;
+        // Step 1: Reverse geocode for city name
+        const geoUrl = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}`;
+        try {
+          const geoRes = await fetch(geoUrl);
+          const geoData = await geoRes.json();
+          let name = 'Current Location', country = '';
+          if (geoData && geoData.results && geoData.results[0]) {
+            name = geoData.results[0].name || name;
+            country = geoData.results[0].country || '';
+          }
+          // Step 2: Get weather
+          const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=relative_humidity_2m,winddirection_10m&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto`;
+          const weatherRes = await fetch(weatherUrl);
+          const weatherData = await weatherRes.json();
+
+          if (!weatherData.current_weather) {
+            showLoader(false);
+            document.getElementById('error').textContent = 'Weather data unavailable for your location.';
+            return;
+          }
+          const w = weatherData.current_weather;
+          let humidity = '';
+          if (weatherData.hourly && weatherData.hourly.relative_humidity_2m) {
+            const idx = weatherData.hourly.time.findIndex(t => t === w.time);
+            if (idx >= 0) humidity = weatherData.hourly.relative_humidity_2m[idx];
+          }
+          let windDir = '';
+          if (weatherData.hourly && weatherData.hourly.winddirection_10m) {
+            const idx = weatherData.hourly.time.findIndex(t => t === w.time);
+            if (idx >= 0) windDir = weatherData.hourly.winddirection_10m[idx];
+          }
+          let forecast = [];
+          if (weatherData.daily && weatherData.daily.time) {
+            for (let i = 1; i <= 3; i++) {
+              if (weatherData.daily.time[i]) {
+                forecast.push({
+                  date: weatherData.daily.time[i],
+                  min: weatherData.daily.temperature_2m_min[i],
+                  max: weatherData.daily.temperature_2m_max[i],
+                  code: weatherData.daily.weathercode[i]
+                });
+              }
+            }
+          }
+          weatherDetails = {
+            name, country,
+            temperature: w.temperature,
+            windspeed: w.windspeed,
+            weathercode: w.weathercode,
+            humidity,
+            windDir,
+            forecast
+          };
+          showLoader(false);
+          renderWeather(weatherDetails);
+          renderForecast(forecast);
+          updateHistory(`${name}, ${country}`);
+        } catch (err) {
+          showLoader(false);
+          document.getElementById('error').textContent = 'Failed to get your location weather.';
+        }
+      }, err => {
+        showLoader(false);
+        document.getElementById('error').textContent = 'Geolocation permission denied.';
+      });
+    }
+
+    // --- Render weather ---
+    function renderWeather(details) {
+      if (!details) return;
+      const weatherDiv = document.getElementById('weather');
+      const weatherIcon = getWeatherIcon(details.weathercode);
+      let temp = convertTemp(details.temperature, !isCelsius);
+      let tempUnit = isCelsius ? '&deg;C' : '&deg;F';
+      let info = `
+        <h3>${details.name}${details.country ? ', ' + details.country : ''}</h3>
+        <img class="icon" src="${weatherIcon.icon}" alt="${weatherIcon.desc}" title="${weatherIcon.desc}"/>
+        <div class="info">
+          <strong>Temperature:</strong> ${temp}${tempUnit}<br>
+          <strong>Wind Speed:</strong> ${details.windspeed} km/h<br>
+          <strong>Condition:</strong> ${weatherIcon.desc}
+        </div>
+        <button class="details-toggle" onclick="toggleDetails()">Show Details</button>
+        <div class="details" id="details">
+          <strong>Humidity:</strong> ${details.humidity !== '' ? details.humidity + '%' : 'N/A'}<br>
+          <strong>Wind Direction:</strong> ${details.windDir !== '' ? details.windDir + '&deg;' : 'N/A'}<br>
+        </div>
+      `;
+      weatherDiv.innerHTML = info;
+    }
+    // --- Details toggle ---
+    function toggleDetails() {
+      const el = document.getElementById('details');
+      if (el.classList.contains('show-details')) {
+        el.classList.remove('show-details');
+        document.querySelector('.details-toggle').textContent = 'Show Details';
+      } else {
+        el.classList.add('show-details');
+        document.querySelector('.details-toggle').textContent = 'Hide Details';
+      }
+    }
+
+    // --- Render forecast ---
+    function renderForecast(forecast) {
+      const forecastDiv = document.getElementById('forecast');
+      if (!forecast || forecast.length === 0) {
+        forecastDiv.innerHTML = '';
+        return;
+      }
+      let tempUnit = isCelsius ? '&deg;C' : '&deg;F';
+      let html = '<h4>Next 3 Days:</h4>';
+      forecast.forEach(day => {
+        const icon = getWeatherIcon(day.code);
+        html += `
+          <div class="forecast-day">
+            <img class="forecast-icon" src="${icon.icon}" alt="${icon.desc}" title="${icon.desc}"/>
+            ${day.date}: ${convertTemp(day.min, !isCelsius)}${tempUnit} - ${convertTemp(day.max, !isCelsius)}${tempUnit} (${icon.desc})
+          </div>
+        `;
+      });
+      forecastDiv.innerHTML = html;
+    }
+
+    // --- On load ---
+    renderHistory();
+  </script>
+</body>
+</html>
